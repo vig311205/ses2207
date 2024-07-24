@@ -39,7 +39,6 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void initState() {
     super.initState();
-    getAllTodo();
   }
 
   @override
@@ -54,13 +53,38 @@ class _MyHomePageState extends State<MyHomePage> {
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         title: Text(widget.title),
       ),
-      body: ListView.builder(
-        itemCount: collectionOfProducts.length,
-        itemBuilder: (context, index) {
-          return ListTile(
-            title: Text(collectionOfProducts[index]['title'] ?? "null"),
-          );
+      body: RefreshIndicator(
+        onRefresh: () async {
+          await getAllTodo();
+          setState(() {});
         },
+        child: FutureBuilder(
+            future: getAllTodo(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return Center(
+                  child: CircularProgressIndicator(),
+                );
+              }
+              return ListView.builder(
+                itemCount: collectionOfProducts.length,
+                itemBuilder: (context, index) {
+                  return ListTile(
+                    leading: Text("${snapshot.data[index]['id'] ?? "null"}"),
+                    title: Text(snapshot.data[index]['title'] ?? "null"),
+                    subtitle:
+                        Text(snapshot.data[index]['description'] ?? "null"),
+                    trailing: IconButton.filledTonal(
+                      onPressed: () async {
+                        await deleteTodo(
+                            todoId: snapshot.data[index]['id'] ?? 0);
+                      },
+                      icon: const Icon(Icons.delete_rounded),
+                    ),
+                  );
+                },
+              );
+            }),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
@@ -72,7 +96,7 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  Future<void> getAllTodo() async {
+  Future<dynamic> getAllTodo() async {
     var url = Uri.https("be-todo-runtime-db.onrender.com", "/todos");
 
     // Get all products
@@ -82,10 +106,11 @@ class _MyHomePageState extends State<MyHomePage> {
     print(response.body.runtimeType);
 
     var resultBody = jsonDecode(response.body);
-    setState(() {
-      collectionOfProducts = resultBody;
-    });
+    // setState(() {
+    collectionOfProducts = resultBody;
+    // });
     print(resultBody[0]['id'].runtimeType);
+    return resultBody;
   }
 
   int ind = 1;
@@ -108,10 +133,16 @@ class _MyHomePageState extends State<MyHomePage> {
       );
 
       ind++;
-
-      await getAllTodo();
+      setState(() {});
     } catch (e) {
       print(e);
     }
+  }
+
+  Future<void> deleteTodo({required int todoId}) async {
+    var url = Uri.https("be-todo-runtime-db.onrender.com", "/todos/$todoId");
+
+    await http.delete(url);
+    setState(() {});
   }
 }
